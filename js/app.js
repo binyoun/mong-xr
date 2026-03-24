@@ -9,12 +9,14 @@
 
 import { CameraManager }     from './camera-manager.js';
 import { ButterflyVision }   from './butterfly-vision.js';
+import { SoundEngine }       from './sound-engine.js';
 import { initDepthParallax } from './depth-parallax.js';
 
 class MongXRApp {
   constructor() {
     this.camera = new CameraManager(document.getElementById('camera-viewport'));
     this.vision = null;
+    this.sound  = new SoundEngine();
   }
 
   async init() {
@@ -28,6 +30,9 @@ class MongXRApp {
 
     this.vision = new ButterflyVision(videoEl);
     this.vision.init();
+
+    // Sound starts with camera — tap gesture satisfies AudioContext requirement
+    this.sound.start();
   }
 
   _waitForTap() {
