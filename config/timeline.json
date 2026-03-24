@@ -1,0 +1,33 @@
+{
+  "_ref": "三十三天 (Trāyastriṃśa) — 33 Heavens in Buddhist cosmology",
+  "stages": {
+    "0_recognition": {
+      "startMs": 0,
+      "label": "Recognition",
+      "description": "Camera opens. Silence. The painting is present."
+    },
+    "1_presence": {
+      "startMs": 5000,
+      "label": "Presence",
+      "description": "The butterfly appears. Nothing else yet."
+    },
+    "2_archive": {
+      "startMs": 33000,
+      "label": "The Archive Surfaces",
+      "description": "Museum images drift from the painting into the space around it.",
+      "imagesPerWave": 3,
+      "waveIntervalMs": 8000
+    },
+    "3_self": {
+      "startMs": 120000,
+      "label": "The Self Enters",
+      "description": "Front camera captures the viewer. They enter the archive.",
+      "promptCaptureMs": 130000
+    },
+    "4_dissolution": {
+      "startMs": 180000,
+      "label": "Dissolution",
+      "description": "The boundary between painting, archive, and viewer dissolves."
+    }
+  }
+}

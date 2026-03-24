@@ -1,0 +1,167 @@
+/* 夢 XR — 호접지몽 */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --gold:       rgba(212, 160, 23, 0.88);
+  --gold-glow:  rgba(212, 160, 23, 0.3);
+  --white-dim:  rgba(255, 255, 255, 0.5);
+  --bg:         #0a0a0c;
+  --font:       'IBM Plex Mono', monospace;
+  --ease:       cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* ---- Camera ---- */
+#camera-viewport {
+  position: fixed; inset: 0; z-index: 0;
+  background: var(--bg);
+}
+#camera-viewport video {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+
+/* ---- Dream layer (all floating elements live here) ---- */
+#dream-layer {
+  position: fixed; inset: 0; z-index: 10;
+  pointer-events: none;
+}
+
+/* ---- Reveal bar ---- */
+#reveal-bar {
+  position: fixed; bottom: 0; left: 0;
+  width: 100%; height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+  z-index: 50; pointer-events: none;
+}
+
+/* ---- Status ---- */
+#status {
+  position: fixed; bottom: 32px; left: 50%;
+  transform: translateX(-50%);
+  color: var(--gold);
+  font-size: 14px; letter-spacing: 0.18em;
+  text-align: center; pointer-events: none;
+  z-index: 60; opacity: 0;
+  transition: opacity 600ms var(--ease);
+  text-shadow: 0 0 20px var(--gold-glow);
+}
+
+/* ---- Corner title ---- */
+#corner-title {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  left: 16px;
+  z-index: 60; pointer-events: none;
+}
+.title-cjk  { font-size: 48px; color: rgba(255,255,255,0.92); line-height: 1; }
+.title-sub  { font-size: 13px; color: rgba(255,255,255,0.45); letter-spacing: 0.1em; margin-top: 6px; }
+.title-ref  { font-size: 11px; color: rgba(212,160,23,0.55); letter-spacing: 0.1em; margin-top: 3px; }
+
+/* ---- Butterfly ---- */
+#butterfly-xr {
+  position: absolute;
+  font-size: 64px;
+  color: var(--gold);
+  text-shadow: 0 0 20px var(--gold-glow), 0 0 50px var(--gold-glow);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition:
+    top    3s cubic-bezier(0.45, 0.05, 0.55, 0.95),
+    left   3s cubic-bezier(0.45, 0.05, 0.55, 0.95),
+    opacity 1.2s var(--ease);
+  animation: butterflyBreath 5s ease-in-out infinite;
+  will-change: transform, top, left;
+  z-index: 30;
+}
+#butterfly-xr.visible    { opacity: 1; }
+#butterfly-xr.dissolving { opacity: 0.3; animation-duration: 12s; }
+
+@keyframes butterflyBreath {
+  0%,100% { transform: translate(-50%, -50%) scale(1)    rotate(-3deg); }
+  33%      { transform: translate(-50%, -50%) scale(1.06) rotate(2deg);  }
+  66%      { transform: translate(-50%, -50%) scale(0.95) rotate(-1deg); }
+}
+
+/* ---- Dream cards ---- */
+.dream-card {
+  position: absolute;
+  width: clamp(90px, 18vw, 160px);
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 1.4s var(--ease), transform 1.4s var(--ease);
+  animation: dreamDrift var(--drift-dur, 8s) var(--drift-delay, 0s) ease-in-out infinite alternate;
+  z-index: 20;
+}
+
+.dream-card.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.dream-card.dissolving {
+  opacity: 0.6;
+  animation-duration: 18s;
+  mix-blend-mode: screen;
+}
+
+@keyframes dreamDrift {
+  from { transform: scale(1) translate(0, 0); }
+  to   { transform: scale(1.04) translate(var(--drift-x, 8px), var(--drift-y, 10px)); }
+}
+
+.dream-card img {
+  width: 100%;
+  display: block;
+  border: 1px solid rgba(255,255,255,0.15);
+  filter: sepia(0.15) brightness(0.88);
+  transition: filter 3s ease;
+}
+
+.dream-card.dissolving img {
+  filter: sepia(0.4) brightness(1.1);
+}
+
+.dream-caption {
+  font-size: 9px;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+  line-height: 1.3;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.dream-source {
+  font-size: 8px;
+  color: rgba(212,160,23,0.5);
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+
+/* Personal card — slightly different treatment */
+.dream-card--personal img {
+  border-color: rgba(212,160,23,0.4);
+  filter: sepia(0.3) brightness(0.9);
+}
+
+.dream-card--personal .dream-caption {
+  color: var(--gold);
+}
