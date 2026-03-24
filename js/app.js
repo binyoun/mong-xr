@@ -9,16 +9,12 @@
 
 import { CameraManager }     from './camera-manager.js';
 import { ButterflyVision }   from './butterfly-vision.js';
-import { ObjectSense }       from './object-sense.js';
-import { DreamBloom }        from './dream-bloom.js';
 import { initDepthParallax } from './depth-parallax.js';
 
 class MongXRApp {
   constructor() {
     this.camera = new CameraManager(document.getElementById('camera-viewport'));
     this.vision = null;
-    this.sense  = null;
-    this.bloom  = null;
   }
 
   async init() {
@@ -28,22 +24,10 @@ class MongXRApp {
     await this._waitForTap();
     this._setStatus('');
 
-    const videoEl = await this.camera.start('environment');
+    const videoEl = await this.camera.start('user');
 
     this.vision = new ButterflyVision(videoEl);
     this.vision.init();
-
-    this.bloom = new DreamBloom();
-    this.bloom.mount();
-
-    this.sense = new ObjectSense();
-    await this.sense.init(msg => this._setStatus(msg));
-
-    this.sense.onDetection((detections, capW, capH) => {
-      this.bloom.addDetections(detections, capW, capH);
-    });
-
-    this.sense.startLoop(() => this.vision.captureFrame(), 2000);
   }
 
   _waitForTap() {
