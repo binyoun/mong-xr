@@ -1,31 +1,33 @@
 /**
- * app.js
- * 夢 XR — butterfly vision prototype
+ * app.js — 夢 XR butterfly vision
  *
- * Camera feed → compound-eye WebGL shader (hex mosaic + spectral shift)
- * Real-world objects detected via DETR → dream-bloom glows at their positions
- * Butterfly emoji drifts toward detected objects
- * Archive card system removed — the dream responds to the actual surroundings
+ * Pipeline:
+ *   camera → WebGL compound-eye shader (ButterflyVision)
+ *   archive images → ambient ghost overlay cycling (CulturalFrame)
+ *   object detection → dream-bloom glows at detected positions (ObjectSense + DreamBloom)
  */
 
 import { CameraManager }   from './camera-manager.js';
-import { ButterflyXR }     from './butterfly-xr.js';
 import { ButterflyVision } from './butterfly-vision.js';
 import { ObjectSense }     from './object-sense.js';
 import { DreamBloom }      from './dream-bloom.js';
+import { CulturalFrame }   from './cultural-frame.js';
 import { initDepthParallax } from './depth-parallax.js';
 
 class MongXRApp {
   constructor() {
-    this.camera    = new CameraManager(document.getElementById('camera-viewport'));
-    this.butterfly = new ButterflyXR(document.getElementById('dream-layer'));
-    this.vision    = null;
-    this.sense     = null;
-    this.bloom     = null;
+    this.camera  = new CameraManager(document.getElementById('camera-viewport'));
+    this.vision  = null;
+    this.sense   = null;
+    this.bloom   = null;
+    this.frame   = null;
   }
 
   async init() {
     initDepthParallax();
+
+    // Load archive config for cultural frame
+    const archiveConfig = await fetch('./config/archive.json').then(r => r.json());
 
     this._setStatus('TAP TO BEGIN');
     await this._waitForTap();
@@ -34,42 +36,27 @@ class MongXRApp {
     // Camera
     const videoEl = await this.camera.start('environment');
 
-    // Compound-eye shader replaces the raw video feed
+    // Compound-eye shader
     this.vision = new ButterflyVision(videoEl);
     this.vision.init();
 
-    // Butterfly — appears tiny, grows to full over 33s
-    this.butterfly.appear();
+    // Cultural layer — archive images cycle as faint ghost overlays
+    this.frame = new CulturalFrame(archiveConfig);
+    this.frame.mount();
 
-    // Dream bloom layer (Canvas 2D, z-index 15)
+    // Dream blooms (object detection results)
     this.bloom = new DreamBloom();
     this.bloom.mount();
 
-    // Object detection — model loads async, status shown while waiting
+    // Object detection
     this.sense = new ObjectSense();
     await this.sense.init(msg => this._setStatus(msg));
 
-    // Wire detections → blooms + butterfly movement
     this.sense.onDetection((detections, capW, capH) => {
       this.bloom.addDetections(detections, capW, capH);
-
-      // Butterfly drifts to highest-confidence detection
-      const best  = detections.reduce((a, b) => a.score > b.score ? a : b);
-      const { xmin, ymin, xmax, ymax } = best.box;
-      const pctX  = ((xmin + xmax) / 2 / capW) * 100;
-      const pctY  = ((ymin + ymax) / 2 / capH) * 100;
-      this._moveButterflyTo(pctX, pctY);
     });
 
-    this.sense.startLoop(() => this.vision.captureFrame(), 1500);
-  }
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  _moveButterflyTo(pctX, pctY) {
-    if (!this.butterfly.el) return;
-    this.butterfly.el.style.left = `${pctX}%`;
-    this.butterfly.el.style.top  = `${pctY}%`;
+    this.sense.startLoop(() => this.vision.captureFrame(), 2000);
   }
 
   _waitForTap() {
