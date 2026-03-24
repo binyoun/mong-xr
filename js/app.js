@@ -1,135 +1,79 @@
 /**
  * app.js
- * 夢 XR — 호접지몽
+ * 夢 XR — butterfly vision prototype
  *
- * A physical painting in a gallery.
- * Time passes. The archive surfaces from it.
- * The viewer enters the archive.
- * The boundary dissolves.
+ * Camera feed → compound-eye WebGL shader (hex mosaic + spectral shift)
+ * Real-world objects detected via DETR → dream-bloom glows at their positions
+ * Butterfly emoji drifts toward detected objects
+ * Archive card system removed — the dream responds to the actual surroundings
  */
 
 import { CameraManager }   from './camera-manager.js';
-import { DreamRenderer }   from './dream-renderer.js';
-import { ArchiveManager }  from './archive-manager.js';
 import { ButterflyXR }     from './butterfly-xr.js';
-import { PersonalLayer }   from './personal-layer.js';
-import { Timeline }        from './timeline.js';
+import { ButterflyVision } from './butterfly-vision.js';
+import { ObjectSense }     from './object-sense.js';
+import { DreamBloom }      from './dream-bloom.js';
 import { initDepthParallax } from './depth-parallax.js';
 
 class MongXRApp {
   constructor() {
     this.camera    = new CameraManager(document.getElementById('camera-viewport'));
-    this.dream     = new DreamRenderer(document.getElementById('dream-layer'));
     this.butterfly = new ButterflyXR(document.getElementById('dream-layer'));
-    this.personal  = null; // set after camera ready
-    this.archive   = null; // set after config loaded
-    this.timeline  = null; // set after config loaded
-    this._archiveConfig  = null;
-    this._timelineConfig = null;
+    this.vision    = null;
+    this.sense     = null;
+    this.bloom     = null;
   }
 
   async init() {
-    [this._archiveConfig, this._timelineConfig] = await Promise.all([
-      this._fetch('./config/archive.json'),
-      this._fetch('./config/timeline.json'),
-    ]);
-
-    this.archive  = new ArchiveManager(this._archiveConfig);
-    this.archive.preload(8); // start preloading before tap — images ready when archive surfaces
-
-    this.timeline = new Timeline(this._timelineConfig);
-
     initDepthParallax();
 
     this._setStatus('TAP TO BEGIN');
     await this._waitForTap();
     this._setStatus('');
 
-    await this.camera.start('environment');
-    this.butterfly.appear(); // Stage 0 — tiny butterfly appears immediately, grows over 33s
-    this.personal = new PersonalLayer(this.camera);
+    // Camera
+    const videoEl = await this.camera.start('environment');
 
-    this._wireTimeline();
-    this.timeline.start();
-    this._startRevealBar();
-  }
+    // Compound-eye shader replaces the raw video feed
+    this.vision = new ButterflyVision(videoEl);
+    this.vision.init();
 
-  // ─── Timeline stages ──────────────────────────────────────────────────────
+    // Butterfly — appears tiny, grows to full over 33s
+    this.butterfly.appear();
 
-  _wireTimeline() {
-    this.timeline
-      .on('2_archive', (stage) => {
-        this._beginArchiveWaves(stage);
-      })
-      .on('3_self', () => {
-        this._enterSelf();
-      })
-      .on('4_dissolution', () => {
-        this.butterfly.dissolve();
-        this.dream.dissolve();
-        this._setStatus('');
-      });
-  }
+    // Dream bloom layer (Canvas 2D, z-index 15)
+    this.bloom = new DreamBloom();
+    this.bloom.mount();
 
-  _beginArchiveWaves(stage) {
-    this.butterfly.startLeading(stage.waveIntervalMs);
-    this._addArchiveWave(stage.imagesPerWave);
+    // Object detection — model loads async, status shown while waiting
+    this.sense = new ObjectSense();
+    await this.sense.init(msg => this._setStatus(msg));
 
-    // Keep surfacing images every wave interval
-    this._archiveInterval = setInterval(() => {
-      this._addArchiveWave(stage.imagesPerWave);
-    }, stage.waveIntervalMs);
-  }
+    // Wire detections → blooms + butterfly movement
+    this.sense.onDetection((detections, capW, capH) => {
+      this.bloom.addDetections(detections, capW, capH);
 
-  _addArchiveWave(count) {
-    for (let i = 0; i < count; i++) {
-      setTimeout(() => {
-        const item  = this.archive.next();
-        // Use preloaded image if available; otherwise create and kick off load
-        const imgEl = this.archive.getLoaded(item.id) || (() => {
-          const img = new Image(); img.src = item.url; return img;
-        })();
+      // Butterfly drifts to highest-confidence detection
+      const best  = detections.reduce((a, b) => a.score > b.score ? a : b);
+      const { xmin, ymin, xmax, ymax } = best.box;
+      const pctX  = ((xmin + xmax) / 2 / capW) * 100;
+      const pctY  = ((ymin + ymax) / 2 / capH) * 100;
+      this._moveButterflyTo(pctX, pctY);
+    });
 
-        // Add card immediately — skeleton shows, image fades in when loaded
-        this.dream.addArchiveCard(item, imgEl);
-        const cards = document.querySelectorAll('.dream-card');
-        if (cards.length) this.butterfly.moveTo(cards[cards.length - 1]);
-      }, i * 1200);
-    }
-  }
-
-  async _enterSelf() {
-    this._setStatus('…');
-
-    // Capture painting from viewer's perspective
-    const painting = this.personal.capturePainting();
-    if (painting) this.dream.addPersonalCard(painting.dataUrl, painting.label);
-
-    // Briefly switch to front camera for face
-    await new Promise(r => setTimeout(r, 2000));
-    const face = await this.personal.captureFace();
-    if (face) this.dream.addPersonalCard(face.dataUrl, face.label);
-
-    this._setStatus('');
-  }
-
-  // ─── Reveal bar ───────────────────────────────────────────────────────────
-
-  _startRevealBar() {
-    const bar = document.getElementById('reveal-bar');
-    if (!bar) return;
-    const dur = this._timelineConfig.stages['2_archive'].startMs;
-    bar.style.setProperty('--cocoon-dur', `${dur}ms`);
-    bar.classList.add('active');
-    setTimeout(() => (bar.style.display = 'none'), dur + 500);
+    this.sense.startLoop(() => this.vision.captureFrame(), 1500);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
+  _moveButterflyTo(pctX, pctY) {
+    if (!this.butterfly.el) return;
+    this.butterfly.el.style.left = `${pctX}%`;
+    this.butterfly.el.style.top  = `${pctY}%`;
+  }
+
   _waitForTap() {
-    return new Promise(resolve => {
-      document.addEventListener('click', resolve, { once: true });
-    });
+    return new Promise(r => document.addEventListener('click', r, { once: true }));
   }
 
   _setStatus(text) {
@@ -137,11 +81,6 @@ class MongXRApp {
     if (!el) return;
     el.textContent   = text;
     el.style.opacity = text ? '1' : '0';
-  }
-
-  async _fetch(url) {
-    const res = await fetch(url);
-    return res.json();
   }
 }
 

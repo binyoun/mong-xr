@@ -62,22 +62,12 @@ html, body {
   perspective-origin: 50% 40%;
 }
 
-/* ---- Reveal bar — full-screen cocoon that opens over 33s ---- */
-#reveal-bar {
+/* ---- Dream bloom canvas (injected by dream-bloom.js, z-index 15) ---- */
+#dream-bloom {
   position: fixed; inset: 0;
-  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.95) 100%);
-  z-index: 50; pointer-events: none;
-  opacity: 0;
-}
-
-#reveal-bar.active {
-  opacity: 1;
-  animation: cocoonOpen var(--cocoon-dur, 33s) linear forwards;
-}
-
-@keyframes cocoonOpen {
-  0%   { opacity: 1; }
-  100% { opacity: 0; }
+  pointer-events: none;
+  z-index: 15;
+  mix-blend-mode: screen;
 }
 
 /* ---- Status ---- */
