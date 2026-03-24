@@ -8,12 +8,13 @@
  * The boundary dissolves.
  */
 
-import { CameraManager }  from './camera-manager.js';
-import { DreamRenderer }  from './dream-renderer.js';
-import { ArchiveManager } from './archive-manager.js';
-import { ButterflyXR }    from './butterfly-xr.js';
-import { PersonalLayer }  from './personal-layer.js';
-import { Timeline }       from './timeline.js';
+import { CameraManager }   from './camera-manager.js';
+import { DreamRenderer }   from './dream-renderer.js';
+import { ArchiveManager }  from './archive-manager.js';
+import { ButterflyXR }     from './butterfly-xr.js';
+import { PersonalLayer }   from './personal-layer.js';
+import { Timeline }        from './timeline.js';
+import { initDepthParallax } from './depth-parallax.js';
 
 class MongXRApp {
   constructor() {
@@ -34,15 +35,19 @@ class MongXRApp {
     ]);
 
     this.archive  = new ArchiveManager(this._archiveConfig);
+    this.archive.preload(8); // start preloading before tap — images ready when archive surfaces
+
     this.timeline = new Timeline(this._timelineConfig);
+
+    initDepthParallax();
 
     this._setStatus('TAP TO BEGIN');
     await this._waitForTap();
     this._setStatus('');
 
     await this.camera.start('environment');
+    this.butterfly.appear(); // Stage 0 — tiny butterfly appears immediately, grows over 33s
     this.personal = new PersonalLayer(this.camera);
-    this.archive.preload(8);
 
     this._wireTimeline();
     this.timeline.start();
@@ -53,9 +58,6 @@ class MongXRApp {
 
   _wireTimeline() {
     this.timeline
-      .on('1_presence', () => {
-        this.butterfly.appear();
-      })
       .on('2_archive', (stage) => {
         this._beginArchiveWaves(stage);
       })
@@ -82,19 +84,16 @@ class MongXRApp {
   _addArchiveWave(count) {
     for (let i = 0; i < count; i++) {
       setTimeout(() => {
-        const item = this.archive.next();
-        const imgEl = this.archive.getLoaded(item.id) || new Image();
-        imgEl.src = item.url;
+        const item  = this.archive.next();
+        // Use preloaded image if available; otherwise create and kick off load
+        const imgEl = this.archive.getLoaded(item.id) || (() => {
+          const img = new Image(); img.src = item.url; return img;
+        })();
 
-        const onReady = () => {
-          this.dream.addArchiveCard(item, imgEl);
-          // Move butterfly toward latest card
-          const cards = document.querySelectorAll('.dream-card');
-          if (cards.length) this.butterfly.moveTo(cards[cards.length - 1]);
-        };
-
-        if (imgEl.complete) onReady();
-        else imgEl.onload = onReady;
+        // Add card immediately — skeleton shows, image fades in when loaded
+        this.dream.addArchiveCard(item, imgEl);
+        const cards = document.querySelectorAll('.dream-card');
+        if (cards.length) this.butterfly.moveTo(cards[cards.length - 1]);
       }, i * 1200);
     }
   }
@@ -120,11 +119,9 @@ class MongXRApp {
     const bar = document.getElementById('reveal-bar');
     if (!bar) return;
     const dur = this._timelineConfig.stages['2_archive'].startMs;
-    requestAnimationFrame(() => {
-      bar.style.transition = `width ${dur}ms linear`;
-      bar.style.width = '0%';
-    });
-    setTimeout(() => bar.style.display = 'none', dur + 500);
+    bar.style.setProperty('--cocoon-dur', `${dur}ms`);
+    bar.classList.add('active');
+    setTimeout(() => (bar.style.display = 'none'), dur + 500);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

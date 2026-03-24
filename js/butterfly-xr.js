@@ -1,7 +1,7 @@
 /**
  * butterfly-xr.js
- * The butterfly — appears in Stage 1, leads through the archive in Stage 2.
- * Movement is ambient and time-based, responding to how long the viewer has been present.
+ * The butterfly — appears at Stage 0 (camera start), tiny and faint, grows to full size over 33s.
+ * Leads through the archive in Stage 2. Sits in front of cards via translateZ(60px).
  * Replace textContent with an <img> or <canvas> when the 3D asset is ready.
  */
 
@@ -52,6 +52,12 @@ export class ButterflyXR {
     const cy   = rect.top  + rect.height / 2;
     this.el.style.left = `${(cx / window.innerWidth)  * 100}%`;
     this.el.style.top  = `${(cy / window.innerHeight) * 100}%`;
+
+    // Match Z depth of the target card so butterfly sits in the same plane
+    if      (el.classList.contains('depth-far'))  this.el.style.setProperty('--butterfly-z', '-280px');
+    else if (el.classList.contains('depth-mid'))  this.el.style.setProperty('--butterfly-z', '-80px');
+    else if (el.classList.contains('depth-near')) this.el.style.setProperty('--butterfly-z', '30px');
+    else                                          this.el.style.setProperty('--butterfly-z', '60px');
   }
 
   dissolve() {

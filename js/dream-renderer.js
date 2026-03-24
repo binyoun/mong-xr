@@ -33,7 +33,7 @@ export class DreamRenderer {
     const pos  = POSITIONS[_posIndex % POSITIONS.length];
     _posIndex++;
 
-    const card = this._createCard(imgEl.src, archiveItem.title, archiveItem.source, pos, 'archive');
+    const card = this._createCard(imgEl, archiveItem.title, archiveItem.source, pos, 'archive');
     this.layer.appendChild(card);
     this._cards.push(card);
 
@@ -71,7 +71,7 @@ export class DreamRenderer {
 
   // ─── Private ──────────────────────────────────────────────────────────────
 
-  _createCard(src, title, source, pos, type) {
+  _createCard(srcOrImg, title, source, pos, type) {
     const card = document.createElement('div');
     card.className = `dream-card dream-card--${type}`;
 
@@ -85,10 +85,39 @@ export class DreamRenderer {
     card.style.setProperty('--drift-dur',  `${6 + seed * 6}s`);
     card.style.setProperty('--drift-delay',`${seed * 3}s`);
 
-    const img = document.createElement('img');
-    img.src = src;
+    // Depth tier — deterministic by position index
+    const tier = (_posIndex - 1) % 3; // _posIndex already incremented before call
+    if (tier === 0) {
+      card.classList.add('depth-far');
+      card.style.setProperty('--depth-z', '-280px');
+    } else if (tier === 1) {
+      card.classList.add('depth-mid');
+      card.style.setProperty('--depth-z', '-80px');
+    } else {
+      card.classList.add('depth-near');
+      card.style.setProperty('--depth-z', '30px');
+    }
+
+    // Build image — accept either a URL string or a preloaded HTMLImageElement
+    let img;
+    if (typeof srcOrImg === 'string') {
+      img = document.createElement('img');
+      img.src = srcOrImg;
+    } else {
+      img = srcOrImg;
+    }
     img.crossOrigin = 'anonymous';
     card.appendChild(img);
+
+    // Skeleton → loaded transition
+    const markLoaded = () => card.classList.add('img-loaded');
+    if (img.complete && img.naturalWidth > 0) {
+      requestAnimationFrame(markLoaded);
+    } else {
+      img.addEventListener('load',  markLoaded, { once: true });
+      img.addEventListener('error', markLoaded, { once: true });
+      setTimeout(markLoaded, 3000); // show card even if image stalls
+    }
 
     if (title) {
       const caption = document.createElement('div');

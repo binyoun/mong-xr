@@ -31,20 +31,53 @@ html, body {
 #camera-viewport video {
   width: 100%; height: 100%;
   object-fit: cover; display: block;
+  filter: sepia(0.1) brightness(0.9);
+  animation: videoDream 180s linear forwards;
+}
+
+@keyframes videoDream {
+  from { filter: sepia(0.1) brightness(0.9); }
+  to   { filter: sepia(0.25) brightness(0.78); }
+}
+
+/* ---- Dream veil — warm golden vignette over camera, deepens over time ---- */
+#dream-veil {
+  position: fixed; inset: 0; z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.85) 100%);
+  opacity: 0.3;
+  animation: dreamDeepen 180s linear forwards;
+}
+
+@keyframes dreamDeepen {
+  from { opacity: 0.3; }
+  to   { opacity: 0.8; }
 }
 
 /* ---- Dream layer (all floating elements live here) ---- */
 #dream-layer {
   position: fixed; inset: 0; z-index: 10;
   pointer-events: none;
+  perspective: 900px;
+  perspective-origin: 50% 40%;
 }
 
-/* ---- Reveal bar ---- */
+/* ---- Reveal bar — full-screen cocoon that opens over 33s ---- */
 #reveal-bar {
-  position: fixed; bottom: 0; left: 0;
-  width: 100%; height: 1px;
-  background: rgba(255, 255, 255, 0.3);
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.95) 100%);
   z-index: 50; pointer-events: none;
+  opacity: 0;
+}
+
+#reveal-bar.active {
+  opacity: 1;
+  animation: cocoonOpen var(--cocoon-dur, 33s) linear forwards;
+}
+
+@keyframes cocoonOpen {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ---- Status ---- */
@@ -73,7 +106,7 @@ html, body {
 /* ---- Butterfly ---- */
 #butterfly-xr {
   position: absolute;
-  font-size: 64px;
+  font-size: 18px;
   color: var(--gold);
   text-shadow: 0 0 20px var(--gold-glow), 0 0 50px var(--gold-glow);
   pointer-events: none;
@@ -87,13 +120,23 @@ html, body {
   will-change: transform, top, left;
   z-index: 30;
 }
-#butterfly-xr.visible    { opacity: 1; }
+#butterfly-xr.visible {
+  opacity: 1;
+  animation:
+    butterflyBreath 5s ease-in-out infinite,
+    butterflyGrow 33s linear forwards;
+}
 #butterfly-xr.dissolving { opacity: 0.3; animation-duration: 12s; }
 
 @keyframes butterflyBreath {
-  0%,100% { transform: translate(-50%, -50%) scale(1)    rotate(-3deg); }
-  33%      { transform: translate(-50%, -50%) scale(1.06) rotate(2deg);  }
-  66%      { transform: translate(-50%, -50%) scale(0.95) rotate(-1deg); }
+  0%,100% { transform: translate(-50%, -50%) translateZ(var(--butterfly-z, 60px)) scale(1)    rotate(-3deg); }
+  33%      { transform: translate(-50%, -50%) translateZ(var(--butterfly-z, 60px)) scale(1.06) rotate(2deg);  }
+  66%      { transform: translate(-50%, -50%) translateZ(var(--butterfly-z, 60px)) scale(0.95) rotate(-1deg); }
+}
+
+@keyframes butterflyGrow {
+  from { font-size: 18px; }
+  to   { font-size: 64px; }
 }
 
 /* ---- Dream cards ---- */
@@ -101,7 +144,8 @@ html, body {
   position: absolute;
   width: clamp(90px, 18vw, 160px);
   opacity: 0;
-  transform: scale(0.92);
+  background: rgba(212, 160, 23, 0.08);
+  transform: scale(0.92) translateZ(var(--depth-z, 0px));
   transition: opacity 1.4s var(--ease), transform 1.4s var(--ease);
   animation: dreamDrift var(--drift-dur, 8s) var(--drift-delay, 0s) ease-in-out infinite alternate;
   z-index: 20;
@@ -109,7 +153,7 @@ html, body {
 
 .dream-card.visible {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1) translateZ(var(--depth-z, 0px));
 }
 
 .dream-card.dissolving {
@@ -118,9 +162,18 @@ html, body {
   mix-blend-mode: screen;
 }
 
+/* ---- Depth tiers ---- */
+.dream-card.depth-far  { width: 80px;  filter: blur(1.5px); }
+.dream-card.depth-mid  { width: 120px; }
+.dream-card.depth-near { width: 160px; }
+
+.dream-card.visible.depth-far  { opacity: 0.45; }
+.dream-card.visible.depth-mid  { opacity: 0.72; }
+.dream-card.visible.depth-near { opacity: 0.95; }
+
 @keyframes dreamDrift {
-  from { transform: scale(1) translate(0, 0); }
-  to   { transform: scale(1.04) translate(var(--drift-x, 8px), var(--drift-y, 10px)); }
+  from { transform: scale(1) translate(var(--tx, 0px), var(--ty, 0px)) translateZ(var(--depth-z, 0px)); }
+  to   { transform: scale(1.04) translate(calc(var(--drift-x, 8px) + var(--tx, 0px)), calc(var(--drift-y, 10px) + var(--ty, 0px))) translateZ(var(--depth-z, 0px)); }
 }
 
 .dream-card img {
@@ -128,7 +181,12 @@ html, body {
   display: block;
   border: 1px solid rgba(255,255,255,0.15);
   filter: sepia(0.15) brightness(0.88);
-  transition: filter 3s ease;
+  opacity: 0;
+  transition: opacity 0.8s ease, filter 3s ease;
+}
+
+.dream-card.img-loaded img {
+  opacity: 1;
 }
 
 .dream-card.dissolving img {
