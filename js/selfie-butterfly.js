@@ -17,16 +17,17 @@ const BUTTERFLY_LIFE_MS   = 33000;
 const FADE_START_MS       = 25000;   // fade begins 8s before death
 const HEX_CELL            = 8;       // simulated hex ommatidium size in px
 const CAPTURE_RES         = 64;      // internal canvas resolution
-// Butterfly pixel-art mask — 10 cols × 7 rows of hex cells
-// Upper wings (rows 0–3) wider than lower (rows 4–5), body tail at row 6
+// Butterfly pixel-art mask — 10 cols × 8 rows of hex cells
+// Waist at row 3 pinches upper from lower wings; tail tapers to body
 const BUTTERFLY_MASK = [
-  [0,1,1,1,0,0,1,1,1,0],
-  [1,1,1,1,0,0,1,1,1,1],
-  [1,1,1,1,1,1,1,1,1,1],
-  [0,1,1,1,1,1,1,1,1,0],
-  [0,0,1,1,0,0,1,1,0,0],
-  [0,0,0,1,1,1,1,0,0,0],
-  [0,0,0,0,1,1,0,0,0,0],
+  [0,0,1,1,1,1,1,1,0,0],  // upper wing top — rounded
+  [0,1,1,1,1,1,1,1,1,0],  // upper wings spread
+  [1,1,1,1,1,1,1,1,1,1],  // widest point
+  [0,0,0,1,1,1,1,0,0,0],  // waist — pinch between upper & lower wings
+  [0,1,1,1,1,1,1,1,1,0],  // lower wings spread
+  [0,0,1,1,1,1,1,1,0,0],  // lower wings
+  [0,0,0,1,1,1,1,0,0,0],  // lower wing tips
+  [0,0,0,0,1,1,0,0,0,0],  // body tail
 ];
 const SWARM_AT            = 8;       // alive count that triggers swarm
 const SWARM_DURATION_MS   = 5000;    // swarm cohesion lasts 5s
@@ -71,7 +72,7 @@ export class SelfieButterflySystem {
     }
   }
 
-  /** Hex pixelation + spectral shift — matches ButterflyVision GLSL shader */
+  /** Pixelation only — real photo colors, chunky hex-cell look */
   _processFrame(dataUrl) {
     return new Promise(resolve => {
       const img  = new Image();
@@ -83,24 +84,13 @@ export class SelfieButterflySystem {
         tCtx.imageSmoothingEnabled = false;
         tCtx.drawImage(img, 0, 0, tiny.width, tiny.height);
 
-        // Scale back up without smoothing — chunky hex-like cells
+        // Scale back up without smoothing — chunky pixel blocks
         const out  = document.createElement('canvas');
         out.width  = out.height = CAPTURE_RES;
         const oCtx = out.getContext('2d');
         oCtx.imageSmoothingEnabled = false;
         oCtx.drawImage(tiny, 0, 0, out.width, out.height);
 
-        // Spectral shift: kill deep red, boost UV proxy (mirrors GLSL spectralShift)
-        const px = oCtx.getImageData(0, 0, out.width, out.height);
-        const d  = px.data;
-        for (let i = 0; i < d.length; i += 4) {
-          const r = d[i], g = d[i + 1], b = d[i + 2];
-          const uv = b * 0.55 + g * 0.15;
-          d[i]     = Math.min(r * 0.22 + uv * 0.22, 255);
-          d[i + 1] = Math.min(g,                     255);
-          d[i + 2] = Math.min(b * 1.1  + uv * 0.35,  255);
-        }
-        oCtx.putImageData(px, 0, 0);
         resolve(out.toDataURL('image/png'));
       };
       img.src = dataUrl;
