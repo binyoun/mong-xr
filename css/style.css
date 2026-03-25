@@ -129,10 +129,11 @@ html, body {
   to   { font-size: 64px; }
 }
 
-/* Selfie butterfly wing-flap — horizontal squeeze simulates wingbeat */
+/* Selfie butterfly wing-flap — applied to the inner canvas only.
+   Perspective tilt lives on the wrapper div, so transforms don't conflict. */
 @keyframes butterflyFlap {
   0%, 100% { transform: scaleX(1.0);  }
-  50%       { transform: scaleX(0.55); }
+  50%       { transform: scaleX(0.52); }
 }
 
 /* ---- Dream cards ---- */

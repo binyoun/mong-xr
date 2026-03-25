@@ -119,18 +119,26 @@ export class SelfieButterflySystem {
     const CW   = Math.ceil((COLS + 0.5) * SX);
     const CH   = Math.ceil(ROWS * SY + R);
 
+    // Wrapper holds 3-D perspective tilt; canvas inside does the wing flap
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = `
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+      will-change: left, top, opacity;
+      transform: perspective(110px) rotateX(32deg) rotateY(6deg);
+    `;
+    this._layer.appendChild(wrapper);
+
     const canvas = document.createElement('canvas');
     canvas.width  = CW;
     canvas.height = CH;
     const flapDur = (1.1 + Math.random() * 0.5).toFixed(2);
     canvas.style.cssText = `
-      position: absolute;
-      pointer-events: none;
-      opacity: 0;
-      will-change: left, top, opacity, transform;
+      display: block;
       animation: butterflyFlap ${flapDur}s ease-in-out infinite;
     `;
-    this._layer.appendChild(canvas);
+    wrapper.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
     // Pointy-top hex path centred at (cx, cy)
@@ -162,10 +170,32 @@ export class SelfieButterflySystem {
           const cx = (col + (row % 2) * 0.5) * SX + R;
           const cy = row * SY + R;
           const i4 = (row * COLS + col) * 4;
+
+          // Directional light: top rows bright, bottom rows shadowed
+          const light = 1.3 - (row / (ROWS - 1)) * 0.6;
+          const cr = Math.min(255, Math.round(px[i4]   * light));
+          const cg = Math.min(255, Math.round(px[i4+1] * light));
+          const cb = Math.min(255, Math.round(px[i4+2] * light));
+
+          // Base cell colour
           hexPath(cx, cy);
-          ctx.fillStyle = `rgb(${px[i4]},${px[i4+1]},${px[i4+2]})`;
+          ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
           ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+
+          // Gloss highlight — small bright spot on upper-left of each hex
+          const gloss = ctx.createRadialGradient(
+            cx - R * 0.28, cy - R * 0.35, 0,
+            cx, cy, R * 0.95,
+          );
+          gloss.addColorStop(0,   'rgba(255,255,255,0.38)');
+          gloss.addColorStop(0.45,'rgba(255,255,255,0.08)');
+          gloss.addColorStop(1,   'rgba(0,0,0,0)');
+          hexPath(cx, cy);
+          ctx.fillStyle = gloss;
+          ctx.fill();
+
+          // Cell border
+          ctx.strokeStyle = 'rgba(0,0,0,0.22)';
           ctx.lineWidth   = 0.6;
           ctx.stroke();
         }
@@ -197,7 +227,7 @@ export class SelfieButterflySystem {
       const age = (now - born) / 1000;
 
       if (age >= life) {
-        canvas.remove();
+        wrapper.remove();
         record.alive = false;
         system._active = system._active.filter(r => r.alive);
         return;
@@ -206,7 +236,7 @@ export class SelfieButterflySystem {
       // Opacity: 1s fade-in, hold, linear fade-out from fadeAt → death
       let alpha = Math.min(age, 1);
       if (age > fadeAt) alpha *= 1 - (age - fadeAt) / (life - fadeAt);
-      canvas.style.opacity = alpha;
+      wrapper.style.opacity = alpha;
 
       // Spiral position — motion scale drives speed
       const spd   = spiralSpd * system._motionScale;
@@ -233,8 +263,8 @@ export class SelfieButterflySystem {
 
       record.x = x / window.innerWidth;
       record.y = y / window.innerHeight;
-      canvas.style.left = `${x - halfW}px`;
-      canvas.style.top  = `${y - halfH}px`;
+      wrapper.style.left = `${x - halfW}px`;
+      wrapper.style.top  = `${y - halfH}px`;
 
       requestAnimationFrame(tick);
     };
