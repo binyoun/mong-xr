@@ -68,8 +68,8 @@ export class SelfieButterflySystem {
 
   /** Draw the butterfly silhouette (filled) onto ctx, scaled to CW×CH */
   _drawButterflyPath(ctx) {
-    const sx = CW / 110, sy = CH / 88;
-    const x = v => v * sx, y = v => v * sy;
+    const s = CW / 110;   // CW/110 === CH/88 === 6/11 for current dimensions
+    const x = v => v * s, y = v => v * s;
 
     // Upper wings
     ctx.beginPath();
@@ -126,10 +126,7 @@ export class SelfieButterflySystem {
     const render = () => {
       ctx.clearRect(0, 0, CW, CH);
 
-      // 1. Draw the full selfie — face centred, fills canvas
-      ctx.save();
       ctx.drawImage(imgEl, 0, 0, CW, CH);
-      ctx.restore();
 
       // 2. Clip to butterfly shape via destination-in
       //    Build a feathered mask on a scratch canvas first
@@ -156,9 +153,10 @@ export class SelfieButterflySystem {
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
 
-      // 4. Dark body centre — thin ellipse gives anatomical definition
+      // 4. Dark body centre
+      const s = CW / 110;
       ctx.beginPath();
-      ctx.ellipse(55*(CW/110), 46*(CH/88), 3.5*(CW/110), 30*(CH/88), 0, 0, Math.PI * 2);
+      ctx.ellipse(55*s, 46*s, 3.5*s, 30*s, 0, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.fill();
     };
@@ -177,7 +175,6 @@ export class SelfieButterflySystem {
     const spiralR   = 0.04 + Math.random() * 0.05;
     const spiralSpd = 0.08 + Math.random() * 0.07;
     const spinDir   = Math.random() > 0.5 ? 1 : -1;
-    const system    = this;
 
     const born   = performance.now();
     const life   = BUTTERFLY_LIFE_MS / 1000;
@@ -189,7 +186,7 @@ export class SelfieButterflySystem {
       if (age >= life) {
         wrapper.remove();
         record.alive = false;
-        system._active = system._active.filter(r => r.alive);
+        this._active = this._active.filter(r => r.alive);
         return;
       }
 
@@ -197,20 +194,20 @@ export class SelfieButterflySystem {
       if (age > fadeAt) alpha *= 1 - (age - fadeAt) / (life - fadeAt);
       wrapper.style.opacity = alpha;
 
-      const spd   = spiralSpd * system._motionScale;
+      const spd   = spiralSpd * this._motionScale;
       const angle = age * spd * Math.PI * 2 * spinDir;
       const r     = spiralR * (1 + age * 0.12);
       let x = (startX + driftX * (age / life) + r * Math.cos(angle)) * window.innerWidth;
       let y = (startY + driftY * (age / life) + r * Math.sin(angle)) * window.innerHeight;
 
       // ── Swarm ──────────────────────────────────────────────────────────
-      const aliveNow = system._active.filter(r => r.alive).length;
-      if (aliveNow >= SWARM_AT && now - system._swarmStart > SWARM_COOLDOWN_MS) {
-        system._swarmStart = now;
+      const aliveNow = this._active.filter(r => r.alive).length;
+      if (aliveNow >= SWARM_AT && now - this._swarmStart > SWARM_COOLDOWN_MS) {
+        this._swarmStart = now;
       }
-      const swarmAge = now - system._swarmStart;
+      const swarmAge = now - this._swarmStart;
       if (swarmAge < SWARM_DURATION_MS) {
-        const c = system._centroid();
+        const c = this._centroid();
         if (c) {
           const t        = swarmAge / SWARM_DURATION_MS;
           const strength = Math.sin(t * Math.PI) * 0.65;
