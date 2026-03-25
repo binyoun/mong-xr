@@ -17,9 +17,8 @@ const SWARM_AT            = 8;
 const SWARM_DURATION_MS   = 5000;
 const SWARM_COOLDOWN_MS   = 40000;
 
-// Canvas size — large enough for the face to read clearly
-const CW = 110;
-const CH = 88;
+const CW = 60;
+const CH = 48;
 
 export class SelfieButterflySystem {
   constructor(cameraManager) {
@@ -67,27 +66,30 @@ export class SelfieButterflySystem {
     };
   }
 
-  /** Draw the butterfly silhouette (filled) onto ctx */
+  /** Draw the butterfly silhouette (filled) onto ctx, scaled to CW×CH */
   _drawButterflyPath(ctx) {
-    // Upper wings — two large symmetric lobes meeting at the body
+    const sx = CW / 110, sy = CH / 88;
+    const x = v => v * sx, y = v => v * sy;
+
+    // Upper wings
     ctx.beginPath();
-    ctx.moveTo(55, 14);
-    ctx.bezierCurveTo(44,  4,  6,  4,  4, 18);   // left outer top
-    ctx.bezierCurveTo( 2, 30,  4, 44, 16, 48);   // left outer sweep
-    ctx.bezierCurveTo(28, 52, 42, 50, 55, 46);   // back to body waist
-    ctx.bezierCurveTo(68, 50, 82, 52, 94, 48);   // right outer sweep
-    ctx.bezierCurveTo(106,44,108, 30,106, 18);   // right outer top
-    ctx.bezierCurveTo(104, 4, 66,  4, 55, 14);   // back to top
+    ctx.moveTo(x(55), y(14));
+    ctx.bezierCurveTo(x(44), y( 4), x( 6), y( 4), x(  4), y(18));
+    ctx.bezierCurveTo(x( 2), y(30), x( 4), y(44), x( 16), y(48));
+    ctx.bezierCurveTo(x(28), y(52), x(42), y(50), x( 55), y(46));
+    ctx.bezierCurveTo(x(68), y(50), x(82), y(52), x( 94), y(48));
+    ctx.bezierCurveTo(x(106),y(44), x(108),y(30), x(106), y(18));
+    ctx.bezierCurveTo(x(104),y( 4), x(66), y( 4), x( 55), y(14));
     ctx.closePath();
 
-    // Lower wings — smaller rounded lobes
-    ctx.moveTo(55, 46);
-    ctx.bezierCurveTo(40, 48, 12, 52, 14, 66);   // lower left outer
-    ctx.bezierCurveTo(16, 74, 28, 78, 38, 72);   // lower left tip
-    ctx.bezierCurveTo(46, 68, 50, 60, 55, 56);   // back to body
-    ctx.bezierCurveTo(60, 60, 64, 68, 72, 72);   // lower right
-    ctx.bezierCurveTo(82, 78, 94, 74, 96, 66);   // lower right outer
-    ctx.bezierCurveTo(98, 52, 70, 48, 55, 46);   // back to waist
+    // Lower wings
+    ctx.moveTo(x(55), y(46));
+    ctx.bezierCurveTo(x(40), y(48), x(12), y(52), x(14), y(66));
+    ctx.bezierCurveTo(x(16), y(74), x(28), y(78), x(38), y(72));
+    ctx.bezierCurveTo(x(46), y(68), x(50), y(60), x(55), y(56));
+    ctx.bezierCurveTo(x(60), y(60), x(64), y(68), x(72), y(72));
+    ctx.bezierCurveTo(x(82), y(78), x(94), y(74), x(96), y(66));
+    ctx.bezierCurveTo(x(98), y(52), x(70), y(48), x(55), y(46));
     ctx.closePath();
   }
 
@@ -156,7 +158,7 @@ export class SelfieButterflySystem {
 
       // 4. Dark body centre — thin ellipse gives anatomical definition
       ctx.beginPath();
-      ctx.ellipse(55, 46, 3.5, 30, 0, 0, Math.PI * 2);
+      ctx.ellipse(55*(CW/110), 46*(CH/88), 3.5*(CW/110), 30*(CH/88), 0, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.fill();
     };
