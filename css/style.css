@@ -204,49 +204,6 @@ html, body {
   text-shadow: 0 1px 3px rgba(0,0,0,0.9);
 }
 
-/* ---- Cultural frame — archive ghost overlay ---- */
-#cultural-frame {
-  position: fixed; inset: 0; z-index: 2;
-  pointer-events: none;
-}
-
-.archive-ghost {
-  position: absolute; inset: 0;
-  background-size: cover;
-  background-position: center;
-  mix-blend-mode: overlay;
-  opacity: 0;
-  transition: opacity 3s ease;
-}
-
-.archive-ghost.active {
-  opacity: 0.08;
-}
-
-#archive-caption {
-  position: fixed;
-  bottom: max(72px, calc(env(safe-area-inset-bottom, 0px) + 48px));
-  right: 16px;
-  z-index: 60;
-  pointer-events: none;
-  font-size: 9px;
-  color: rgba(212, 160, 23, 0.55);
-  letter-spacing: 0.1em;
-  text-align: right;
-  line-height: 1.5;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
-  opacity: 0;
-  transition: opacity 1.5s ease;
-}
-
-#archive-caption span {
-  color: rgba(212, 160, 23, 0.35);
-}
-
-#archive-caption.active {
-  opacity: 1;
-}
-
 /* Personal card — slightly different treatment */
 .dream-card--personal img {
   border-color: rgba(212,160,23,0.4);
