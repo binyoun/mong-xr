@@ -10,6 +10,7 @@
 import { CameraManager }          from './camera-manager.js';
 import { ButterflyVision }        from './butterfly-vision.js';
 import { SoundEngine }            from './sound-engine.js';
+import { MotionSense }            from './motion-sense.js';
 import { SelfieButterflySystem }  from './selfie-butterfly.js';
 import { initDepthParallax }      from './depth-parallax.js';
 
@@ -28,14 +29,23 @@ class MongXRApp {
     await this._waitForTap();
     this._setStatus('');
 
+    // AudioContext must be created synchronously within the gesture —
+    // start sound before any awaits or iOS will block it
+    this.sound.start();
+
     // Back camera — viewer points phone at the world
     const videoEl = await this.camera.start('environment');
 
     this.vision = new ButterflyVision(videoEl);
     this.vision.init();
 
-    // Sound starts with camera — tap gesture satisfies AudioContext requirement
-    this.sound.start();
+    // MotionSense: viewer's movement conducts the ritual pace
+    const motion = new MotionSense(videoEl);
+    motion.onChange(score => {
+      this.sound.setMotion(score);
+      this.selfies?.setMotion(score);
+    });
+    motion.start(100);
 
     // Every 8s: briefly switch to front camera, capture selfie, release spiral butterfly
     this.selfies = new SelfieButterflySystem(this.camera);

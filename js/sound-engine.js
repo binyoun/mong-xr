@@ -31,9 +31,10 @@ export class SoundEngine {
     this._masterGain = null;
     this._delay      = null;
 
-    this.BPM_START = 38;
-    this.BPM_END   = 126;
-    this.RAMP_SEC  = 200;     // seconds to reach full tempo
+    this.BPM_START    = 38;
+    this.BPM_END      = 126;
+    this.RAMP_SEC     = 200;     // seconds to reach full tempo
+    this._motionScore = 0;       // 0 = still, 1 = maximum movement
   }
 
   /** Call after a user gesture (tap). */
@@ -58,6 +59,16 @@ export class SoundEngine {
     try { this._ctx?.close(); } catch (_) {}
   }
 
+  /**
+   * Called by MotionSense on every sample.
+   * score 0 = perfectly still → ritual stays slow
+   * score 1 = maximum movement → accelerates toward BPM_END
+   */
+  setMotion(score) {
+    // Smooth to avoid BPM stuttering on single-frame spikes
+    this._motionScore += (score - this._motionScore) * 0.15;
+  }
+
   // ─── Scheduling ───────────────────────────────────────────────────────────
 
   _tick() {
@@ -74,7 +85,9 @@ export class SoundEngine {
   _bpm() {
     const t    = Math.min((this._ctx.currentTime - this._startTime) / this.RAMP_SEC, 1);
     const ease = 1 - Math.pow(1 - t, 2.4);   // ease-out — organic, not mechanical
-    return this.BPM_START + (this.BPM_END - this.BPM_START) * ease;
+    const base = this.BPM_START + (this.BPM_END - this.BPM_START) * ease;
+    // Viewer's movement accelerates the ritual — mirrors the medium in lên đồng
+    return Math.min(base + this._motionScore * 35, this.BPM_END);
   }
 
   // Velocity envelope: quiet at start, full at peak
