@@ -17,7 +17,17 @@ const BUTTERFLY_LIFE_MS   = 33000;
 const FADE_START_MS       = 25000;   // fade begins 8s before death
 const HEX_CELL            = 8;       // simulated hex ommatidium size in px
 const CAPTURE_RES         = 64;      // internal canvas resolution
-const BUTTERFLY_PX        = 28;      // on-screen display size in px
+// Butterfly pixel-art mask — 10 cols × 7 rows of hex cells
+// Upper wings (rows 0–3) wider than lower (rows 4–5), body tail at row 6
+const BUTTERFLY_MASK = [
+  [0,1,1,1,0,0,1,1,1,0],
+  [1,1,1,1,0,0,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1],
+  [0,1,1,1,1,1,1,1,1,0],
+  [0,0,1,1,0,0,1,1,0,0],
+  [0,0,0,1,1,1,1,0,0,0],
+  [0,0,0,0,1,1,0,0,0,0],
+];
 const SWARM_AT            = 8;       // alive count that triggers swarm
 const SWARM_DURATION_MS   = 5000;    // swarm cohesion lasts 5s
 const SWARM_COOLDOWN_MS   = 40000;   // minimum gap between swarms
@@ -108,34 +118,80 @@ export class SelfieButterflySystem {
 
   _spawnButterfly(dataUrl) {
     if (!this._layer) return;
-    const half = BUTTERFLY_PX / 2;
 
-    const el = document.createElement('div');
-    el.style.cssText = `
+    // ── Build hex-cell butterfly canvas ─────────────────────────────────────
+    // Pointy-top hexagons; odd rows offset right by SX/2
+    const R    = 4;                           // hex circumradius px
+    const SX   = R * Math.sqrt(3);            // centre-to-centre horizontal
+    const SY   = R * 1.5;                     // centre-to-centre vertical
+    const COLS = BUTTERFLY_MASK[0].length;
+    const ROWS = BUTTERFLY_MASK.length;
+    const CW   = Math.ceil((COLS + 0.5) * SX);
+    const CH   = Math.ceil(ROWS * SY + R);
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = CW;
+    canvas.height = CH;
+    const flapDur = (1.1 + Math.random() * 0.5).toFixed(2);
+    canvas.style.cssText = `
       position: absolute;
-      width:  ${BUTTERFLY_PX}px;
-      height: ${BUTTERFLY_PX}px;
-      background: url('${dataUrl}') center / cover no-repeat;
-      image-rendering: pixelated;
-      border-radius: 50%;
       pointer-events: none;
       opacity: 0;
-      will-change: left, top, opacity;
+      will-change: left, top, opacity, transform;
+      animation: butterflyFlap ${flapDur}s ease-in-out infinite;
     `;
-    this._layer.appendChild(el);
+    this._layer.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
 
+    // Pointy-top hex path centred at (cx, cy)
+    const hexPath = (cx, cy) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 6;
+        const px = cx + R * Math.cos(a);
+        const py = cy + R * Math.sin(a);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    };
+
+    // Sample the processed image at mask-grid resolution and draw once
+    const imgEl = new Image();
+    imgEl.src = dataUrl;
+    const renderCells = () => {
+      const sc = document.createElement('canvas');
+      sc.width = COLS; sc.height = ROWS;
+      const sCtx = sc.getContext('2d');
+      sCtx.drawImage(imgEl, 0, 0, COLS, ROWS);
+      const px = sCtx.getImageData(0, 0, COLS, ROWS).data;
+
+      ctx.clearRect(0, 0, CW, CH);
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+          if (!BUTTERFLY_MASK[row][col]) continue;
+          const cx = (col + (row % 2) * 0.5) * SX + R;
+          const cy = row * SY + R;
+          const i4 = (row * COLS + col) * 4;
+          hexPath(cx, cy);
+          ctx.fillStyle = `rgb(${px[i4]},${px[i4+1]},${px[i4+2]})`;
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+          ctx.lineWidth   = 0.6;
+          ctx.stroke();
+        }
+      }
+    };
+    imgEl.onload = renderCells;
+    if (imgEl.complete) renderCells();
+
+    // ── Spawn & animate ──────────────────────────────────────────────────────
     const record = { x: 0.5, y: 0.5, alive: true };
     this._active.push(record);
 
-    // Random spawn — avoid screen edges
     const startX    = 0.15 + Math.random() * 0.70;
     const startY    = 0.15 + Math.random() * 0.70;
-
-    // Slow drift — each butterfly wanders in a slightly different direction
     const driftX    = (Math.random() - 0.5) * 0.08;
     const driftY    = (Math.random() - 0.5) * 0.08;
-
-    // Slow spiral — 0.08–0.15 rotations per second at rest
     const spiralR   = 0.04 + Math.random() * 0.05;
     const spiralSpd = 0.08 + Math.random() * 0.07;
     const spinDir   = Math.random() > 0.5 ? 1 : -1;
@@ -144,12 +200,14 @@ export class SelfieButterflySystem {
     const born   = performance.now();
     const life   = BUTTERFLY_LIFE_MS / 1000;
     const fadeAt = FADE_START_MS / 1000;
+    const halfW  = CW / 2;
+    const halfH  = CH / 2;
 
     const tick = (now) => {
       const age = (now - born) / 1000;
 
       if (age >= life) {
-        el.remove();
+        canvas.remove();
         record.alive = false;
         system._active = system._active.filter(r => r.alive);
         return;
@@ -158,29 +216,24 @@ export class SelfieButterflySystem {
       // Opacity: 1s fade-in, hold, linear fade-out from fadeAt → death
       let alpha = Math.min(age, 1);
       if (age > fadeAt) alpha *= 1 - (age - fadeAt) / (life - fadeAt);
-      el.style.opacity = alpha;
+      canvas.style.opacity = alpha;
 
       // Spiral position — motion scale drives speed
       const spd   = spiralSpd * system._motionScale;
       const angle = age * spd * Math.PI * 2 * spinDir;
-      const r     = spiralR * (1 + age * 0.12);   // slowly opening spiral
+      const r     = spiralR * (1 + age * 0.12);
       let x = (startX + driftX * (age / life) + r * Math.cos(angle)) * window.innerWidth;
       let y = (startY + driftY * (age / life) + r * Math.sin(angle)) * window.innerHeight;
 
-      // ── Swarm ────────────────────────────────────────────────────────────
+      // ── Swarm ──────────────────────────────────────────────────────────
       const aliveNow = system._active.filter(r => r.alive).length;
-
-      // Trigger a new swarm if threshold met and cooldown has passed
       if (aliveNow >= SWARM_AT && now - system._swarmStart > SWARM_COOLDOWN_MS) {
         system._swarmStart = now;
       }
-
-      // Apply swarm pull within the active swarm window
       const swarmAge = now - system._swarmStart;
       if (swarmAge < SWARM_DURATION_MS) {
         const c = system._centroid();
         if (c) {
-          // Bell curve: peaks at 0.5 of swarm duration, smooth in/out
           const t        = swarmAge / SWARM_DURATION_MS;
           const strength = Math.sin(t * Math.PI) * 0.65;
           x += (c.x * window.innerWidth  - x) * strength;
@@ -188,12 +241,10 @@ export class SelfieButterflySystem {
         }
       }
 
-      // Update shared record for centroid calculation
       record.x = x / window.innerWidth;
       record.y = y / window.innerHeight;
-
-      el.style.left = `${x - half}px`;
-      el.style.top  = `${y - half}px`;
+      canvas.style.left = `${x - halfW}px`;
+      canvas.style.top  = `${y - halfH}px`;
 
       requestAnimationFrame(tick);
     };

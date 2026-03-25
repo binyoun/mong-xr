@@ -129,6 +129,12 @@ html, body {
   to   { font-size: 64px; }
 }
 
+/* Selfie butterfly wing-flap — horizontal squeeze simulates wingbeat */
+@keyframes butterflyFlap {
+  0%, 100% { transform: scaleX(1.0);  }
+  50%       { transform: scaleX(0.55); }
+}
+
 /* ---- Dream cards ---- */
 .dream-card {
   position: absolute;
