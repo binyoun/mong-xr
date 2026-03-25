@@ -129,11 +129,18 @@ html, body {
   to   { font-size: 64px; }
 }
 
-/* Selfie butterfly wing-flap — applied to the inner canvas only.
-   Perspective tilt lives on the wrapper div, so transforms don't conflict. */
+/* Wing-flap — applied to the inner canvas; wrapper holds the perspective tilt */
 @keyframes butterflyFlap {
   0%, 100% { transform: scaleX(1.0);  }
-  50%       { transform: scaleX(0.52); }
+  50%       { transform: scaleX(0.50); }
+}
+
+/* Metamorphosis colour arc over the butterfly's 33s life:
+   natural → iridescent → hue-shifted dissolution */
+@keyframes butterflyMorph {
+  0%   { filter: saturate(1.1) brightness(1.05) hue-rotate(0deg);  }
+  40%  { filter: saturate(1.6) brightness(1.18) hue-rotate(22deg); }
+  100% { filter: saturate(0.8) brightness(0.88) hue-rotate(65deg); }
 }
 
 /* ---- Dream cards ---- */

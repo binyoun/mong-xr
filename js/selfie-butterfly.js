@@ -1,37 +1,25 @@
 /**
  * selfie-butterfly.js
- * Every 8s: switches to front camera, captures a selfie, processes it
- * through a hex pixelation pass matching the ButterflyVision shader,
- * then releases a tiny slow spiral-drifting butterfly into the AR layer.
+ * Every 8s: captures a selfie, clips it into a smooth butterfly silhouette,
+ * and releases it as a slowly morphing AR creature.
  *
- * 三十三天 — each butterfly lives exactly 33s, mapping to the 33
- * Buddhist heavens already embedded in the ritual structure.
+ * 三十三天 — each butterfly lives exactly 33s.
+ * Metamorphosis arc: natural colours → iridescent → hue-shifted dissolution.
  *
  * Swarm threshold: when 8 butterflies are alive simultaneously they
- * are pulled toward their collective centroid for 5s, briefly assembling
- * into one body, then released back to their individual spirals.
+ * are pulled toward their collective centroid for 5s.
  */
 
 const CAPTURE_INTERVAL_MS = 8000;
 const BUTTERFLY_LIFE_MS   = 33000;
-const FADE_START_MS       = 25000;   // fade begins 8s before death
-const HEX_CELL            = 8;       // simulated hex ommatidium size in px
-const CAPTURE_RES         = 64;      // internal canvas resolution
-// Butterfly pixel-art mask — 10 cols × 8 rows of hex cells
-// Waist at row 3 pinches upper from lower wings; tail tapers to body
-const BUTTERFLY_MASK = [
-  [0,0,1,1,1,1,1,1,0,0],  // upper wing top — rounded
-  [0,1,1,1,1,1,1,1,1,0],  // upper wings spread
-  [1,1,1,1,1,1,1,1,1,1],  // widest point
-  [0,0,0,1,1,1,1,0,0,0],  // waist — pinch between upper & lower wings
-  [0,1,1,1,1,1,1,1,1,0],  // lower wings spread
-  [0,0,1,1,1,1,1,1,0,0],  // lower wings
-  [0,0,0,1,1,1,1,0,0,0],  // lower wing tips
-  [0,0,0,0,1,1,0,0,0,0],  // body tail
-];
-const SWARM_AT            = 8;       // alive count that triggers swarm
-const SWARM_DURATION_MS   = 5000;    // swarm cohesion lasts 5s
-const SWARM_COOLDOWN_MS   = 40000;   // minimum gap between swarms
+const FADE_START_MS       = 25000;
+const SWARM_AT            = 8;
+const SWARM_DURATION_MS   = 5000;
+const SWARM_COOLDOWN_MS   = 40000;
+
+// Canvas size — large enough for the face to read clearly
+const CW = 110;
+const CH = 88;
 
 export class SelfieButterflySystem {
   constructor(cameraManager) {
@@ -39,9 +27,9 @@ export class SelfieButterflySystem {
     this._layer       = document.getElementById('dream-layer');
     this._intervalId  = null;
     this._busy        = false;
-    this._active      = [];           // { x, y, alive } — updated each frame
-    this._motionScale = 1.0;          // 0.4 (still) → 2.5 (moving)
-    this._swarmStart  = -Infinity;    // timestamp of last swarm trigger
+    this._active      = [];
+    this._motionScale = 1.0;
+    this._swarmStart  = -Infinity;
   }
 
   start() {
@@ -51,7 +39,6 @@ export class SelfieButterflySystem {
 
   stop() { clearInterval(this._intervalId); }
 
-  /** Called by MotionSense — still = slow drift, moving = faster spirals */
   setMotion(score) {
     this._motionScale = 0.4 + score * 2.1;
   }
@@ -62,39 +49,13 @@ export class SelfieButterflySystem {
     if (this._busy) return;
     this._busy = true;
     try {
-      const dataUrl   = await this._cam.captureFace();
-      const processed = await this._processFrame(dataUrl);
-      this._spawnButterfly(processed);
+      const dataUrl = await this._cam.captureFace();
+      this._spawnButterfly(dataUrl);
     } catch (err) {
       console.warn('[SelfieButterflySystem] capture failed:', err);
     } finally {
       this._busy = false;
     }
-  }
-
-  /** Pixelation only — real photo colors, chunky hex-cell look */
-  _processFrame(dataUrl) {
-    return new Promise(resolve => {
-      const img  = new Image();
-      img.onload = () => {
-        // Downsample to HEX_CELL grid — each pixel = one ommatidium
-        const tiny = document.createElement('canvas');
-        tiny.width = tiny.height = CAPTURE_RES / HEX_CELL;
-        const tCtx = tiny.getContext('2d');
-        tCtx.imageSmoothingEnabled = false;
-        tCtx.drawImage(img, 0, 0, tiny.width, tiny.height);
-
-        // Scale back up without smoothing — chunky pixel blocks
-        const out  = document.createElement('canvas');
-        out.width  = out.height = CAPTURE_RES;
-        const oCtx = out.getContext('2d');
-        oCtx.imageSmoothingEnabled = false;
-        oCtx.drawImage(tiny, 0, 0, out.width, out.height);
-
-        resolve(out.toDataURL('image/png'));
-      };
-      img.src = dataUrl;
-    });
   }
 
   _centroid() {
@@ -106,34 +67,50 @@ export class SelfieButterflySystem {
     };
   }
 
+  /** Draw the butterfly silhouette (filled) onto ctx */
+  _drawButterflyPath(ctx) {
+    // Upper wings — two large symmetric lobes meeting at the body
+    ctx.beginPath();
+    ctx.moveTo(55, 14);
+    ctx.bezierCurveTo(44,  4,  6,  4,  4, 18);   // left outer top
+    ctx.bezierCurveTo( 2, 30,  4, 44, 16, 48);   // left outer sweep
+    ctx.bezierCurveTo(28, 52, 42, 50, 55, 46);   // back to body waist
+    ctx.bezierCurveTo(68, 50, 82, 52, 94, 48);   // right outer sweep
+    ctx.bezierCurveTo(106,44,108, 30,106, 18);   // right outer top
+    ctx.bezierCurveTo(104, 4, 66,  4, 55, 14);   // back to top
+    ctx.closePath();
+
+    // Lower wings — smaller rounded lobes
+    ctx.moveTo(55, 46);
+    ctx.bezierCurveTo(40, 48, 12, 52, 14, 66);   // lower left outer
+    ctx.bezierCurveTo(16, 74, 28, 78, 38, 72);   // lower left tip
+    ctx.bezierCurveTo(46, 68, 50, 60, 55, 56);   // back to body
+    ctx.bezierCurveTo(60, 60, 64, 68, 72, 72);   // lower right
+    ctx.bezierCurveTo(82, 78, 94, 74, 96, 66);   // lower right outer
+    ctx.bezierCurveTo(98, 52, 70, 48, 55, 46);   // back to waist
+    ctx.closePath();
+  }
+
   _spawnButterfly(dataUrl) {
     if (!this._layer) return;
 
-    // ── Build hex-cell butterfly canvas ─────────────────────────────────────
-    // Pointy-top hexagons; odd rows offset right by SX/2
-    const R    = 4;                           // hex circumradius px
-    const SX   = R * Math.sqrt(3);            // centre-to-centre horizontal
-    const SY   = R * 1.5;                     // centre-to-centre vertical
-    const COLS = BUTTERFLY_MASK[0].length;
-    const ROWS = BUTTERFLY_MASK.length;
-    const CW   = Math.ceil((COLS + 0.5) * SX);
-    const CH   = Math.ceil(ROWS * SY + R);
-
-    // Wrapper holds 3-D perspective tilt; canvas inside does the wing flap
+    // ── Wrapper: perspective tilt + morph animation ───────────────────────
+    const flapDur = (1.1 + Math.random() * 0.5).toFixed(2);
     const wrapper = document.createElement('div');
     wrapper.style.cssText = `
       position: absolute;
       pointer-events: none;
       opacity: 0;
       will-change: left, top, opacity;
-      transform: perspective(110px) rotateX(32deg) rotateY(6deg);
+      transform: perspective(120px) rotateX(28deg) rotateY(${(Math.random()*10-5).toFixed(1)}deg);
+      animation: butterflyMorph 33s linear forwards;
     `;
     this._layer.appendChild(wrapper);
 
+    // ── Canvas: selfie clipped to butterfly shape ─────────────────────────
     const canvas = document.createElement('canvas');
     canvas.width  = CW;
     canvas.height = CH;
-    const flapDur = (1.1 + Math.random() * 0.5).toFixed(2);
     canvas.style.cssText = `
       display: block;
       animation: butterflyFlap ${flapDur}s ease-in-out infinite;
@@ -141,71 +118,54 @@ export class SelfieButterflySystem {
     wrapper.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
-    // Pointy-top hex path centred at (cx, cy)
-    const hexPath = (cx, cy) => {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i - Math.PI / 6;
-        const px = cx + R * Math.cos(a);
-        const py = cy + R * Math.sin(a);
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-    };
-
-    // Sample the processed image at mask-grid resolution and draw once
     const imgEl = new Image();
     imgEl.src = dataUrl;
-    const renderCells = () => {
-      const sc = document.createElement('canvas');
-      sc.width = COLS; sc.height = ROWS;
-      const sCtx = sc.getContext('2d');
-      sCtx.drawImage(imgEl, 0, 0, COLS, ROWS);
-      const px = sCtx.getImageData(0, 0, COLS, ROWS).data;
 
+    const render = () => {
       ctx.clearRect(0, 0, CW, CH);
-      for (let row = 0; row < ROWS; row++) {
-        for (let col = 0; col < COLS; col++) {
-          if (!BUTTERFLY_MASK[row][col]) continue;
-          const cx = (col + (row % 2) * 0.5) * SX + R;
-          const cy = row * SY + R;
-          const i4 = (row * COLS + col) * 4;
 
-          // Directional light: top rows bright, bottom rows shadowed
-          const light = 1.3 - (row / (ROWS - 1)) * 0.6;
-          const cr = Math.min(255, Math.round(px[i4]   * light));
-          const cg = Math.min(255, Math.round(px[i4+1] * light));
-          const cb = Math.min(255, Math.round(px[i4+2] * light));
+      // 1. Draw the full selfie — face centred, fills canvas
+      ctx.save();
+      ctx.drawImage(imgEl, 0, 0, CW, CH);
+      ctx.restore();
 
-          // Base cell colour
-          hexPath(cx, cy);
-          ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
-          ctx.fill();
+      // 2. Clip to butterfly shape via destination-in
+      //    Build a feathered mask on a scratch canvas first
+      const mask = document.createElement('canvas');
+      mask.width = CW; mask.height = CH;
+      const mCtx = mask.getContext('2d');
+      mCtx.filter = 'blur(4px)';
+      mCtx.fillStyle = '#fff';
+      this._drawButterflyPath(mCtx);
+      mCtx.fill();
 
-          // Gloss highlight — small bright spot on upper-left of each hex
-          const gloss = ctx.createRadialGradient(
-            cx - R * 0.28, cy - R * 0.35, 0,
-            cx, cy, R * 0.95,
-          );
-          gloss.addColorStop(0,   'rgba(255,255,255,0.38)');
-          gloss.addColorStop(0.45,'rgba(255,255,255,0.08)');
-          gloss.addColorStop(1,   'rgba(0,0,0,0)');
-          hexPath(cx, cy);
-          ctx.fillStyle = gloss;
-          ctx.fill();
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(mask, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
 
-          // Cell border
-          ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-          ctx.lineWidth   = 0.6;
-          ctx.stroke();
-        }
-      }
+      // 3. Iridescence overlay — shifts colour like real wing scales
+      this._drawButterflyPath(ctx);
+      const iri = ctx.createLinearGradient(0, 0, CW, CH);
+      iri.addColorStop(0,   'rgba(140,200,255,0.18)');
+      iri.addColorStop(0.4, 'rgba(255,230,120,0.10)');
+      iri.addColorStop(1,   'rgba(200,120,255,0.18)');
+      ctx.fillStyle = iri;
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+
+      // 4. Dark body centre — thin ellipse gives anatomical definition
+      ctx.beginPath();
+      ctx.ellipse(55, 46, 3.5, 30, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fill();
     };
-    imgEl.onload = renderCells;
-    if (imgEl.complete) renderCells();
 
-    // ── Spawn & animate ──────────────────────────────────────────────────────
-    const record = { x: 0.5, y: 0.5, alive: true };
+    imgEl.onload = render;
+    if (imgEl.complete) render();
+
+    // ── Spawn & animate ───────────────────────────────────────────────────
+    const record  = { x: 0.5, y: 0.5, alive: true };
     this._active.push(record);
 
     const startX    = 0.15 + Math.random() * 0.70;
@@ -220,8 +180,6 @@ export class SelfieButterflySystem {
     const born   = performance.now();
     const life   = BUTTERFLY_LIFE_MS / 1000;
     const fadeAt = FADE_START_MS / 1000;
-    const halfW  = CW / 2;
-    const halfH  = CH / 2;
 
     const tick = (now) => {
       const age = (now - born) / 1000;
@@ -233,12 +191,10 @@ export class SelfieButterflySystem {
         return;
       }
 
-      // Opacity: 1s fade-in, hold, linear fade-out from fadeAt → death
       let alpha = Math.min(age, 1);
       if (age > fadeAt) alpha *= 1 - (age - fadeAt) / (life - fadeAt);
       wrapper.style.opacity = alpha;
 
-      // Spiral position — motion scale drives speed
       const spd   = spiralSpd * system._motionScale;
       const angle = age * spd * Math.PI * 2 * spinDir;
       const r     = spiralR * (1 + age * 0.12);
@@ -263,8 +219,8 @@ export class SelfieButterflySystem {
 
       record.x = x / window.innerWidth;
       record.y = y / window.innerHeight;
-      wrapper.style.left = `${x - halfW}px`;
-      wrapper.style.top  = `${y - halfH}px`;
+      wrapper.style.left = `${x - CW / 2}px`;
+      wrapper.style.top  = `${y - CH / 2}px`;
 
       requestAnimationFrame(tick);
     };
